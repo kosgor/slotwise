@@ -14,7 +14,7 @@
     "test:watch": "vitest",
     "test:e2e": "next build && playwright test",
     "db:seed": "node scripts/generate-seed.mts",
-    "db:seed:remote": "supabase db query --linked -f supabase/seed.sql",
+    "db:seed:remote": "node scripts/seed-remote.mts",
     "db:types": "supabase gen types typescript --linked --schema public > lib/supabase/database.types.ts && prettier --write lib/supabase/database.types.ts",
     "db:demo-users": "node scripts/seed-demo-users.mts",
     "test:integration": "vitest run --config vitest.integration.config.mts",

@@ -7,7 +7,7 @@
 
 > Статус: этапы 4–5 (AI-консьерж, админка, продакшен-качество). Работает локально с облачной dev-базой Supabase, Stripe в тестовом режиме и Gemini (бесплатный тариф); деплой — позже.
 >
-> Эксплуатация (окружения, Sentry, логи, бэкап, откат миграций): [docs/operations.md](docs/operations.md). Доступность: [docs/accessibility.md](docs/accessibility.md).
+> Деплой по шагам: [docs/deploy.md](docs/deploy.md). Эксплуатация (окружения, Sentry, логи, бэкап, откат миграций): [docs/operations.md](docs/operations.md). Доступность: [docs/accessibility.md](docs/accessibility.md).
 
 ## Что есть
 
@@ -79,7 +79,7 @@ npm run evals -- rag-unknown-parking  # один вопрос
 ```bash
 npx supabase link --project-ref <ref>
 npx supabase db push --include-seed   # миграции и демо-каталог
-npm run db:seed:remote                # применить seed повторно после его изменения
+npm run db:seed:remote                # применить seed повторно (проверяет, что CLI привязан к проекту из .env.local)
 npm run db:demo-users                 # демо-аккаунты трёх ролей
 ```
 
@@ -113,6 +113,7 @@ npm run db:backup          # дамп ролей, схемы и данных (н
 - [Фоновые задачи и письма](docs/decisions/0010-background-jobs-and-emails.md)
 - [AI-консьерж: права, подтверждения, RAG и лимиты](docs/decisions/0011-ai-concierge.md)
 - [Админка, журнал действий и наблюдаемость](docs/decisions/0012-admin-audit-observability.md)
+- [Сервис для Великобритании: фунты, en-GB, британский каталог](docs/decisions/0013-uk-market.md)
 
 ## Как я использовал AI и как проверял
 

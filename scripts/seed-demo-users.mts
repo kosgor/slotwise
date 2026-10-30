@@ -1,18 +1,14 @@
-// Creates demo accounts for the three roles (client, provider, admin) in the linked Supabase
-// project. Idempotent: existing accounts are reused. Run: npm run db:demo-users
+// Creates demo accounts for the three roles (client, provider, admin). Idempotent: existing
+// accounts are reused. Run: npm run db:demo-users (dev, .env.local)
+// or npm run db:demo-users -- --env .env.prod (production).
 //
 // Uses the secret key (Admin API): users are created with a confirmed email and no email is sent.
 // Addresses use example.com, a domain reserved for examples, so nothing ever reaches a real person.
 import { createClient } from "@supabase/supabase-js";
 
-process.loadEnvFile(".env.local");
+import { loadTarget } from "./target-env.mts";
 
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const secret = process.env.SUPABASE_SECRET_KEY;
-if (!url || !secret) {
-  console.error("Set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SECRET_KEY in .env.local first.");
-  process.exit(1);
-}
+const { url, secret } = loadTarget();
 
 export const DEMO_PASSWORD = process.env.DEMO_PASSWORD ?? "SlotwiseDemo2026";
 
