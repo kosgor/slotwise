@@ -10,7 +10,8 @@ import { loadTarget } from "./target-env.mts";
 
 const { url, secret } = loadTarget();
 
-export const DEMO_PASSWORD = process.env.DEMO_PASSWORD ?? "SlotwiseDemo2026";
+// `||`, not `??`: env files copied from .env.example have an empty DEMO_PASSWORD= line.
+export const DEMO_PASSWORD = process.env.DEMO_PASSWORD || "SlotwiseDemo2026";
 
 const DEMO_USERS = [
   { email: "demo-client@example.com", fullName: "Demo Client", role: "client" },
@@ -55,8 +56,10 @@ for (const demo of DEMO_USERS) {
     console.log(`exists  ${demo.email}`);
   }
 
-  // An existing account gets the current name too: the demo provider was renamed with the seed.
+  // An existing account gets the current name and the demo password too: the demo provider was
+  // renamed with the seed, and a visitor may have changed the password on the public demo.
   const { error: metaError } = await admin.auth.admin.updateUserById(id, {
+    password: DEMO_PASSWORD,
     user_metadata: { full_name: demo.fullName },
   });
   if (metaError) throw metaError;
