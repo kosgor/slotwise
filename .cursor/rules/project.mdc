@@ -1,0 +1,79 @@
+---
+description: Slotwise project rules
+alwaysApply: true
+---
+
+# Project
+Slotwise: booking platform for independent professionals.
+Roles: client, provider, admin. Plan: docs/PLAN.md. Decisions: docs/decisions/.
+
+# Stack
+Next.js App Router, TypeScript strict, Tailwind, shadcn/ui, Framer Motion,
+TanStack Query, React Hook Form + Zod, Supabase (Postgres, Auth, Storage, pgvector),
+Stripe, Vercel AI SDK, Inngest, Resend, Vitest, Playwright, Sentry.
+
+# Working mode
+- Always propose a short plan first: files to change, risks, tests. Wait for approval.
+- One small change at a time. Never refactor code outside the task.
+- Never invent library APIs. If unsure, say so and point to the docs page to check.
+- Never run git commands that change history or publish (init, add, commit, push, remote, tag, gh)
+  and never deploy. Give the owner the exact commands; they run them by hand. Reading is fine.
+- Explain non-obvious decisions in the PR description, not in long code comments.
+
+# Security (never break these)
+- Secrets only on the server. Never use NEXT_PUBLIC_ for keys.
+- The Supabase service_role client is used only in webhooks, background jobs and server-only
+  bookkeeping that users must not write (ai_usage tokens and cost).
+- Every mutation re-checks permissions on the server. Hiding UI is not access control.
+- Never trust ids or prices sent from the browser; read them from the database.
+- Validate all input with Zod at the server boundary.
+- Bookings and other critical writes go through database functions (book_slot, cancel_booking,
+  apply_as_provider): price, schedule and permissions are checked in the database, not in the browser.
+- Post-login redirects accept only same-site paths (lib/auth/redirect.ts safeNext).
+
+# Database
+- Schema changes only through new files in supabase/migrations. Never edit old migrations.
+- Every new table gets RLS enabled, explicit policies and explicit GRANTs to anon/authenticated in the same migration.
+  The project does not auto-expose tables: a table without a GRANT is unreachable from the Data API.
+- Money in integer cents. Time in timestamptz (UTC); convert to provider timezone in UI.
+- Schedules are stored in the provider's local time; slot rules live in lib/booking/rules.ts AND in
+  book_slot() — change both; tests/rls checks they agree.
+- After changing the schema run npm run db:types. Never edit lib/supabase/database.types.ts by hand.
+
+# Payments and webhooks
+- Verify Stripe webhook signatures using the raw request body.
+- Webhook handlers are idempotent: record event.id in stripe_events before processing.
+- Payment state changes happen only from webhooks, never from the success page.
+- One webhook effect = one SQL function (stripe_* in 20261020000000_payments.sql) that records the
+  event and changes data in one transaction. Subscriptions are re-read from Stripe, never taken from
+  the event body.
+- Amounts for Checkout come from the booking row, never from the request. Refund amounts in the
+  database change only via the charge.refunded webhook.
+- Slow work (emails, refunds, reminders) goes to Inngest; job event ids derive from booking or
+  Stripe event ids so retries do not duplicate. lib/supabase/admin.ts is the only secret-key client.
+
+# AI
+- Tools that change data require explicit user confirmation in the UI (proposeBooking only returns a
+  proposal; cancelBooking needs toolApproval, its approval text built from the database).
+- Tools run with the current user's permissions (the user's Supabase client, never service_role).
+- The chat route reads history from the database; from the request it takes only a new user message
+  or an approval answer (lib/ai/chat-messages.ts).
+- Answers about provider policies must cite the source chunk or say "I don't know".
+- Every model call is claimed first with claim_ai_request() (rate and daily limits, mirrored in
+  lib/ai/limits.ts); tokens and cost go into ai_usage afterwards.
+
+# Admin and operations
+- Admin decisions go through database functions that check the role and write audit_log in the same
+  transaction (review_provider, moderate_review). audit_log is append-only.
+- Server logs go through lib/log.ts (JSON, ids only, no secrets or message texts); errors also reach
+  Sentry.
+
+# UI
+- Every data view handles loading, empty, error and success states.
+- Mobile first. Test Safari on iPhone before calling UI done.
+- Use design tokens from the Tailwind config, never hard-coded colors or spacing.
+
+# Tests
+- Pure logic (slots, cancellation rules, limits, webhook handling) gets Vitest tests.
+- A test must fail when the code is broken. Check this by breaking the code once.
+- Critical user paths get Playwright tests.

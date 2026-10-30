@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Supabase settings come from repository secrets (Settings → Secrets and variables → Actions):
+# NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, SUPABASE_SECRET_KEY.
+# The secret key is used by tests to create throwaway users and by the app in webhooks and jobs.
+# STRIPE_SECRET_KEY (test mode) lets e2e create real Checkout sessions; the webhook secret can be
+# any whsec_ value, because the test signs its simulated webhook with the same secret.
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run format:check
+      # Unit tests + RLS tests (migrations and policies run in PGlite, no external database).
+      - run: npm test
+      # supabase/seed.sql is generated from lib/catalog/seed-data.ts; fail if someone forgot to regenerate it.
+      - run: npm run db:seed && git diff --exit-code supabase/seed.sql
+
+  integration:
+    runs-on: ubuntu-latest
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # Real database: concurrent bookings of one slot, cross-user reads.
+      - run: npm run test:integration
+
+  e2e:
+    runs-on: ubuntu-latest
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+      NEXT_PUBLIC_SITE_URL: http://localhost:3100
+      STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+      STRIPE_WEBHOOK_SECRET: whsec_ci_simulated_webhooks
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      # Builds the production app (the catalog is prerendered from Supabase), then runs Playwright:
+      # catalog and booking flows, accounts, axe accessibility checks.
+      - run: npm run test:e2e
+      # Failure drill "key in the browser": no secret key or server-only value in .next/static.
+      - run: npm run security:bundle
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-traces
+          path: test-results/
+          retention-days: 7

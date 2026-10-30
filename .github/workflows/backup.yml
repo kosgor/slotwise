@@ -1,0 +1,62 @@
+name: Database backup
+
+# Nightly copy of the production database outside Supabase: dump → encrypt → Cloudflare R2.
+# Setup and restore steps: docs/operations.md, "Своя копия вне Supabase".
+#
+# Repository secrets:
+#   SUPABASE_DB_URL       session pooler connection string (runners have no IPv6, so not the direct one)
+#   BACKUP_AGE_RECIPIENT  age public key (age1…). The private key never goes to GitHub: this job can
+#                         lock a backup but cannot open one.
+#   R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY   R2 token limited to the backup bucket
+#   R2_BUCKET             bucket name; a lifecycle rule there deletes objects older than 30 days
+
+on:
+  schedule:
+    - cron: "0 3 * * *" # 03:00 UTC every day
+  workflow_dispatch: # "Run workflow" button, for the first run and restore drills
+
+# Never two dumps at once.
+concurrency:
+  group: db-backup
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      BACKUP_DIR: ${{ runner.temp }}/backups
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: sudo apt-get update && sudo apt-get install -y age
+
+      # roles.sql, schema.sql, data.sql in $BACKUP_DIR/<timestamp>/ (pg_dump runs in Docker).
+      - run: npm run db:backup
+
+      - name: Encrypt
+        env:
+          BACKUP_AGE_RECIPIENT: ${{ secrets.BACKUP_AGE_RECIPIENT }}
+        run: |
+          cd "$BACKUP_DIR"
+          stamp=$(ls)
+          tar -czf - "$stamp" | age -r "$BACKUP_AGE_RECIPIENT" -o "$stamp.tar.gz.age"
+          rm -rf "$stamp"
+          echo "ARCHIVE=$stamp.tar.gz.age" >> "$GITHUB_ENV"
+
+      - name: Upload to R2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+        run: >
+          aws s3 cp "$BACKUP_DIR/$ARCHIVE" "s3://${{ secrets.R2_BUCKET }}/db/$ARCHIVE"
+          --endpoint-url "https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com"

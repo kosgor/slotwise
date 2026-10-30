@@ -1,0 +1,189 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Design tokens. Components use only these names (bg-primary, text-muted-foreground, ...),
+ * never raw colors. Contrast of every text/background pair is checked by
+ * tests/unit/design-tokens.test.ts — change a value, run `npm test`.
+ */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+  --font-heading: var(--font-sans);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+:root {
+  --background: oklch(0.99 0.004 95);
+  --foreground: oklch(0.22 0.02 260);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.22 0.02 260);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.22 0.02 260);
+  --primary: oklch(0.48 0.1 180);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.95 0.02 180);
+  --secondary-foreground: oklch(0.32 0.06 180);
+  --muted: oklch(0.96 0.006 95);
+  --muted-foreground: oklch(0.47 0.02 260);
+  --accent: oklch(0.94 0.04 80);
+  --accent-foreground: oklch(0.35 0.07 60);
+  --destructive: oklch(0.52 0.19 27);
+  --success: oklch(0.47 0.11 150);
+  --success-foreground: oklch(0.99 0 0);
+  --warning: oklch(0.84 0.14 85);
+  --warning-foreground: oklch(0.3 0.06 60);
+  --border: oklch(0.91 0.008 95);
+  --input: oklch(0.6 0.015 260);
+  --ring: oklch(0.48 0.1 180);
+  --chart-1: oklch(0.48 0.1 180);
+  --chart-2: oklch(0.65 0.12 80);
+  --chart-3: oklch(0.55 0.12 260);
+  --chart-4: oklch(0.6 0.15 27);
+  --chart-5: oklch(0.55 0.1 150);
+  --radius: 0.75rem;
+  --sidebar: oklch(0.98 0.004 95);
+  --sidebar-foreground: oklch(0.22 0.02 260);
+  --sidebar-primary: oklch(0.48 0.1 180);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: oklch(0.95 0.02 180);
+  --sidebar-accent-foreground: oklch(0.32 0.06 180);
+  --sidebar-border: oklch(0.91 0.008 95);
+  --sidebar-ring: oklch(0.48 0.1 180);
+}
+
+.dark {
+  --background: oklch(0.17 0.015 260);
+  --foreground: oklch(0.96 0.005 95);
+  --card: oklch(0.21 0.015 260);
+  --card-foreground: oklch(0.96 0.005 95);
+  --popover: oklch(0.21 0.015 260);
+  --popover-foreground: oklch(0.96 0.005 95);
+  --primary: oklch(0.8 0.11 180);
+  --primary-foreground: oklch(0.2 0.03 180);
+  --secondary: oklch(0.28 0.035 180);
+  --secondary-foreground: oklch(0.92 0.03 180);
+  --muted: oklch(0.25 0.015 260);
+  --muted-foreground: oklch(0.74 0.015 260);
+  --accent: oklch(0.3 0.04 75);
+  --accent-foreground: oklch(0.93 0.05 85);
+  --destructive: oklch(0.7 0.18 25);
+  --success: oklch(0.74 0.14 150);
+  --success-foreground: oklch(0.2 0.04 150);
+  --warning: oklch(0.82 0.14 85);
+  --warning-foreground: oklch(0.25 0.05 60);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(0.56 0.015 260);
+  --ring: oklch(0.8 0.11 180);
+  --chart-1: oklch(0.8 0.11 180);
+  --chart-2: oklch(0.8 0.12 80);
+  --chart-3: oklch(0.72 0.12 260);
+  --chart-4: oklch(0.7 0.15 27);
+  --chart-5: oklch(0.74 0.12 150);
+  --sidebar: oklch(0.2 0.015 260);
+  --sidebar-foreground: oklch(0.96 0.005 95);
+  --sidebar-primary: oklch(0.8 0.11 180);
+  --sidebar-primary-foreground: oklch(0.2 0.03 180);
+  --sidebar-accent: oklch(0.28 0.035 180);
+  --sidebar-accent-foreground: oklch(0.92 0.03 180);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.8 0.11 180);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    /* scroll-pt: anchors (#faq, #all-providers) land right under the sticky header, 4rem (h-16) + 1px
+       border. */
+    @apply scroll-pt-[calc(4rem+1px)] scroll-smooth font-sans;
+    /* Room for the scrollbar is kept on every page, so moving between a page that scrolls and one
+       that does not never shifts the layout sideways (the header and centred content stay put). */
+    scrollbar-gutter: stable;
+  }
+  /* Radix dialogs lock the scroll and add a margin the width of the scrollbar so the page does not
+     move. The gutter above already keeps that room, so the margin would shift the page instead. */
+  html body[data-scroll-locked] {
+    margin-right: 0 !important;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+  }
+}
+
+/*
+ * Scroll reveal (components/motion/reveal.tsx): CSS scroll-driven animation, no JavaScript.
+ * Progressive enhancement: only where supported and motion is welcome; everywhere else the
+ * content is simply visible.
+ */
+@keyframes reveal-in {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .reveal {
+      animation: reveal-in linear both;
+      animation-timeline: view();
+      animation-range: entry calc(var(--reveal-index, 0) * 4%) entry
+        calc(35% + var(--reveal-index, 0) * 4%);
+    }
+  }
+}
