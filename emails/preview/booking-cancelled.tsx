@@ -7,7 +7,7 @@ export default function Preview() {
       booking={SAMPLE_BOOKING}
       audience="client"
       cancelledBy="provider"
-      refund="£45"
+      refund="£65"
     />
   );
 }

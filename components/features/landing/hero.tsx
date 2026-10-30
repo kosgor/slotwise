@@ -88,16 +88,16 @@ export function Hero({ providerCount, cityCount }: { providerCount: number; city
           <div className="flex items-center gap-3">
             {/* First screen: load eagerly; the h1, not this small image, stays the LCP element. */}
             <ProviderAvatar
-              name="Anna Kowalska"
+              name="Anna Whitfield"
               photoUrl="/images/providers/anna-yoga.jpg"
               preload
             />
             <div>
-              <p className="font-semibold">Anna Kowalska</p>
+              <p className="font-semibold">Anna Whitfield</p>
               <p className="text-sm text-muted-foreground">Private yoga class · 60 min</p>
             </div>
           </div>
-          <p className="mt-5 text-sm font-medium">Tuesday, 20 October</p>
+          <p className="mt-5 text-sm font-medium">Tuesday 3 November</p>
           <div className="mt-3 grid grid-cols-3 gap-2">
             {PREVIEW_SLOTS.map((slot) => (
               <span

@@ -2,5 +2,5 @@
 import { RefundIssuedEmail, SAMPLE_BOOKING } from "../booking-emails";
 
 export default function Preview() {
-  return <RefundIssuedEmail booking={SAMPLE_BOOKING} amount="£45" />;
+  return <RefundIssuedEmail booking={SAMPLE_BOOKING} amount="£65" />;
 }

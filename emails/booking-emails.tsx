@@ -140,9 +140,9 @@ export function SlotLostEmail({ booking, amount }: { booking: EmailBooking; amou
 // Sample data for the React Email preview server.
 export const SAMPLE_BOOKING: EmailBooking = {
   serviceTitle: "Private yoga class",
-  when: "Tuesday, 27 October 2026, 10:00 (Central European Time)",
+  when: "Tuesday 3 November 2026, 10:00 (London time)",
   duration: "1 h",
-  price: "£45",
-  providerName: "Anna Kowalska",
+  price: "£65",
+  providerName: "Anna Whitfield",
   clientName: "Alex Client",
 };

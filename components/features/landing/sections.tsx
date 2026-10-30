@@ -93,14 +93,16 @@ export function HowItWorks() {
       <ol className="mt-10 grid gap-6 md:grid-cols-3">
         {STEPS.map((step, i) => (
           <Reveal as="li" key={step.title} index={i} className="rounded-xl border bg-card p-6">
-            <span className="inline-flex size-10 items-center justify-center rounded-lg bg-secondary text-secondary-foreground">
-              <step.icon className="size-5" aria-hidden="true" />
-            </span>
-            <h3 className="mt-4 font-semibold">
-              <span className="text-muted-foreground">{i + 1}. </span>
-              {step.title}
-            </h3>
-            <p className="mt-2 text-muted-foreground">{step.text}</p>
+            <div className="flex items-center gap-3">
+              <span className="inline-flex size-10 shrink-0 items-center justify-center rounded-lg bg-secondary text-secondary-foreground">
+                <step.icon className="size-5" aria-hidden="true" />
+              </span>
+              <h3 className="font-semibold">
+                <span className="text-muted-foreground">{i + 1}. </span>
+                {step.title}
+              </h3>
+            </div>
+            <p className="mt-3 text-muted-foreground">{step.text}</p>
           </Reveal>
         ))}
       </ol>
