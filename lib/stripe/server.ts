@@ -7,6 +7,8 @@ import "server-only";
 
 import Stripe from "stripe";
 
+import { absoluteUrl } from "@/lib/site";
+
 let client: Stripe | null = null;
 
 export function stripe(): Stripe {
@@ -22,7 +24,8 @@ export function isStripeConfigured(): boolean {
   return Boolean(process.env.STRIPE_SECRET_KEY);
 }
 
-/** Absolute URL of a page on this site, for links Stripe sends the user back to. */
-export function siteUrl(path: string): string {
-  return new URL(path, process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000").toString();
-}
+/**
+ * Absolute URL of a page on this site, for links Stripe sends the user back to. The same base as
+ * the sitemap (lib/site.ts): on Vercel it falls back to the production domain, never to localhost.
+ */
+export const siteUrl = (path: string): string => absoluteUrl(path);

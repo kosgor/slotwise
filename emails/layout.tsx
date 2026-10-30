@@ -19,6 +19,8 @@ import {
 } from "@react-email/components";
 import type { ReactNode } from "react";
 
+import { absoluteUrl } from "../lib/site";
+
 const font = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
 
 export function EmailLayout({
@@ -104,6 +106,5 @@ export function ActionLink({ href, children }: { href: string; children: ReactNo
   );
 }
 
-export function siteHref(path: string): string {
-  return new URL(path, process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000").toString();
-}
+/** Absolute link for an email: same base as the site (lib/site.ts), so never localhost on Vercel. */
+export const siteHref = (path: string): string => absoluteUrl(path);
