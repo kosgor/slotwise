@@ -63,7 +63,19 @@ async function PaymentContent({
       <dl className="mt-6 grid gap-4 rounded-2xl border bg-card p-6 text-sm sm:grid-cols-2">
         <div>
           <dt className="text-muted-foreground">With</dt>
-          <dd className="font-medium">{booking.providerName}</dd>
+          <dd className="font-medium">
+            {/* Only public profiles: the join is empty for a suspended or removed provider. */}
+            {row.providers ? (
+              <Link
+                href={`/pros/${row.providers.slug}`}
+                className="underline-offset-4 hover:underline"
+              >
+                {booking.providerName}
+              </Link>
+            ) : (
+              booking.providerName
+            )}
+          </dd>
         </div>
         <div>
           <dt className="text-muted-foreground">When</dt>

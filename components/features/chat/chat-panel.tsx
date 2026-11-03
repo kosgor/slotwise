@@ -351,10 +351,13 @@ function ChatSession({
               }
             }}
             maxLength={MAX_MESSAGE_CHARS}
-            rows={2}
+            rows={1}
             aria-describedby={hintId}
             placeholder={provider ? `Ask about ${provider.name}…` : "Ask the assistant…"}
-            className="min-h-11 resize-none"
+            // One line centred in the 44px of the Send button: 1px border + 9px padding + 24px line
+            // on mobile (16px text), 11px padding + 20px line from md (14px text). Grows with the
+            // text, then scrolls.
+            className="max-h-40 min-h-11 resize-none py-[9px] md:py-[11px]"
           />
           {busy ? (
             <Button type="button" variant="outline" className="h-11" onClick={() => void stop()}>

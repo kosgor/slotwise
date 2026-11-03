@@ -6,7 +6,8 @@
 import { cacheLife, cacheTag } from "next/cache";
 
 import { searchCatalog, type CatalogPage, type CatalogQuery } from "./query";
-import { loadApprovedSummaries, loadProviderDetails } from "./source";
+import { REVIEWS_PAGE_SIZE, type ReviewsPage } from "./reviews";
+import { loadApprovedSummaries, loadProviderDetails, loadReviewsPage } from "./source";
 import type { ProviderDetails, ProviderSummary } from "./types";
 
 export async function searchProviders(query: CatalogQuery): Promise<CatalogPage> {
@@ -29,6 +30,27 @@ export async function getProviderBySlug(slug: string): Promise<ProviderDetails |
   cacheLife("hours");
   cacheTag("catalog", `provider:${slug}`);
   return loadProviderDetails(slug);
+}
+
+/** More reviews of a public profile ("Show more reviews"); null for an unknown or hidden slug. */
+export async function getProviderReviews(
+  slug: string,
+  offset: number,
+): Promise<ReviewsPage | null> {
+  "use cache";
+  cacheLife("hours");
+  cacheTag("catalog", `provider:${slug}`);
+  const provider = await getProviderBySlug(slug);
+  if (!provider) return null;
+  return loadReviewsPage(provider.id, offset, REVIEWS_PAGE_SIZE);
+}
+
+/** Slug of every public profile by provider id, for links from bookings to the profile. */
+export async function getPublicSlugsById(): Promise<Record<string, string>> {
+  "use cache";
+  cacheLife("hours");
+  cacheTag("catalog");
+  return Object.fromEntries((await loadApprovedSummaries()).map((p) => [p.id, p.slug]));
 }
 
 export async function getAllProviderSlugs(): Promise<{ slug: string; updatedAt: string }[]> {

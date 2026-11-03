@@ -36,9 +36,12 @@ export function BookingCard({
   audience,
   timeZone,
   now,
+  providerHref,
 }: {
   booking: Booking;
   audience: "client" | "provider";
+  /** The provider's public profile; absent when it is no longer public (suspended, removed). */
+  providerHref?: string;
   /** Zone to show times in; falls back to the provider's zone. */
   timeZone: string | null;
   now: Date;
@@ -74,7 +77,19 @@ export function BookingCard({
           <li className="flex items-center gap-2">
             <UserIcon className="size-4" aria-hidden="true" />
             {audience === "client" ? (
-              <>with {booking.providerName}</>
+              <>
+                with{" "}
+                {providerHref ? (
+                  <Link
+                    href={providerHref}
+                    className="font-medium text-foreground underline-offset-4 hover:underline"
+                  >
+                    {booking.providerName}
+                  </Link>
+                ) : (
+                  booking.providerName
+                )}
+              </>
             ) : (
               <>
                 {booking.clientName} ·{" "}

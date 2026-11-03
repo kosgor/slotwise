@@ -727,11 +727,12 @@ test("an admin hides a review, restores it, and both decisions are in the audit 
   await expect(page.getByRole("figure", { name: "Bookings per day" })).toBeVisible();
   await expectNoAxeViolations(page, "admin dashboard");
 
-  // Dashboard: the AI section starts folded.
+  // Dashboard: the AI section starts open and folds away.
   const aiToggle = page.getByRole("button", { name: /^AI/ });
-  await expect(aiToggle).toHaveAttribute("aria-expanded", "false");
-  await aiToggle.click();
+  await expect(aiToggle).toHaveAttribute("aria-expanded", "true");
   await expect(page.getByRole("figure", { name: "AI spend per day" })).toBeVisible();
+  await aiToggle.click();
+  await expect(page.getByRole("figure", { name: "AI spend per day" })).toBeHidden();
 
   // Providers: the table section starts open, folds, and a stat tile opens it again.
   await page.goto("/admin");

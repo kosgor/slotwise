@@ -5,6 +5,8 @@ import { notFound } from "next/navigation";
 
 import { ProviderAvatar } from "@/components/features/catalog/provider-avatar";
 import { Rating } from "@/components/features/catalog/rating";
+import { RatingBreakdown } from "@/components/features/catalog/rating-breakdown";
+import { ReviewsList } from "@/components/features/catalog/reviews-list";
 import { ProviderChat } from "@/components/features/chat/chat-launcher";
 import { JsonLd } from "@/components/seo/json-ld";
 import { Badge } from "@/components/ui/badge";
@@ -33,12 +35,6 @@ export async function generateMetadata({ params }: PageProps<"/pros/[slug]">): P
     openGraph: { title, description: provider.headline, type: "profile" },
   };
 }
-
-const reviewDate = new Intl.DateTimeFormat("en-GB", {
-  month: "long",
-  year: "numeric",
-  timeZone: "UTC",
-});
 
 export default async function ProviderPage({ params }: PageProps<"/pros/[slug]">) {
   const { slug } = await params;
@@ -160,25 +156,21 @@ export default async function ProviderPage({ params }: PageProps<"/pros/[slug]">
             <h2 id="reviews-title" className="text-xl font-semibold">
               Reviews
             </h2>
-            {provider.reviews.length === 0 ? (
+            {provider.reviews.length === 0 || provider.ratingAvg === null ? (
               <p className="mt-3 text-muted-foreground">No reviews yet.</p>
             ) : (
-              <ul className="mt-4 space-y-4">
-                {provider.reviews.map((review) => (
-                  <li key={review.id} className="rounded-xl border bg-card p-5">
-                    <figure>
-                      <figcaption className="flex flex-wrap items-center justify-between gap-2 text-sm">
-                        <span className="font-semibold">{review.authorName}</span>
-                        <span className="text-muted-foreground">
-                          <span className="sr-only">Rating: </span>
-                          {review.rating} out of 5 · {reviewDate.format(new Date(review.createdAt))}
-                        </span>
-                      </figcaption>
-                      <blockquote className="mt-2">{review.body}</blockquote>
-                    </figure>
-                  </li>
-                ))}
-              </ul>
+              <>
+                <RatingBreakdown
+                  average={provider.ratingAvg}
+                  total={provider.reviewCount}
+                  counts={provider.ratingBreakdown}
+                />
+                <ReviewsList
+                  slug={provider.slug}
+                  initial={provider.reviews}
+                  total={provider.reviewCount}
+                />
+              </>
             )}
           </section>
 

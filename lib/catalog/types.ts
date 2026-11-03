@@ -65,5 +65,8 @@ export type ProviderSummary = Provider & {
 
 export type ProviderDetails = ProviderSummary & {
   services: Service[];
+  /** The newest visible reviews (REVIEWS_FIRST_PAGE); the rest load on demand. */
   reviews: Review[];
+  /** Visible reviews per rating, 5 stars first (lib/catalog/reviews.ts). */
+  ratingBreakdown: number[];
 };

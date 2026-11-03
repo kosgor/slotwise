@@ -108,10 +108,10 @@ async function Dashboard() {
         />
       </section>
 
-      {/* Closed by default: the running cost matters less day to day than bookings. */}
       <CollapsibleSection
         title="AI"
         summary={`${formatMicros(m.ai.costMicros)} spent · ${m.ai.requests} requests`}
+        defaultOpen
       >
         <DailyBarChart
           title="AI spend per day"

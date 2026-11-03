@@ -87,6 +87,24 @@ test("landing search goes to filtered catalog", async ({ page }) => {
   await expect(page.getByRole("link", { name: "Daniel Brooks" })).toBeVisible();
 });
 
+test("a profile shows the newest reviews and loads the rest in place", async ({ page }) => {
+  // Seed: Anna has 8 reviews, one of them hidden by moderation, so 7 are public.
+  await page.goto("/pros/anna-yoga");
+  const reviews = page.getByRole("region", { name: "Reviews" });
+  await expect(reviews.getByText("7 reviews", { exact: true })).toBeVisible();
+  await expect(
+    reviews.getByRole("list", { name: "Reviews by rating" }).getByRole("listitem"),
+  ).toHaveCount(5);
+  await expect(reviews.getByRole("blockquote")).toHaveCount(5);
+
+  await reviews.getByRole("button", { name: "Show 2 more reviews" }).click();
+  await expect(reviews.getByRole("blockquote")).toHaveCount(7);
+  await expect(reviews.getByRole("status")).toHaveText("2 more reviews loaded.");
+  // Focus lands on the first new review, not back at the top of the page.
+  await expect(reviews.getByRole("listitem").nth(5 + 5)).toBeFocused();
+  await expect(reviews.getByRole("button")).toHaveCount(0);
+});
+
 test("unknown and non-approved providers return a real 404", async ({ page }) => {
   for (const path of ["/pros/zoe-coaching", "/pros/nobody-yoga", "/pros/nobody-yoga/book"]) {
     const response = await page.goto(path);
@@ -185,6 +203,10 @@ test.describe("without JavaScript", () => {
     await page.goto("/pros/anna-yoga");
     await expect(page.getByRole("heading", { level: 1, name: "Anna Whitfield" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Private class" })).toBeVisible();
+    // The newest reviews are in the HTML; loading more needs JavaScript, so no dead button.
+    const reviews = page.getByRole("region", { name: "Reviews" });
+    await expect(reviews.getByRole("blockquote")).toHaveCount(5);
+    await expect(reviews.getByRole("button")).toHaveCount(0);
   });
 
   test("scroll-reveal content is visible", async ({ page }) => {

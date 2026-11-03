@@ -11,6 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { requireUser } from "@/lib/auth/guards";
 import { displayName } from "@/lib/auth/session";
 import { bookingTab, listClientBookings, type BookingTab } from "@/lib/booking/queries";
+import { getPublicSlugsById } from "@/lib/catalog/repository";
 import { viewerTimeZone } from "@/lib/viewer-timezone";
 
 export const metadata: Metadata = { title: "My bookings", robots: { index: false } };
@@ -34,7 +35,11 @@ export default function AccountPage({ searchParams }: PageProps<"/account">) {
 async function AccountContent({ searchParams }: Pick<PageProps<"/account">, "searchParams">) {
   const params = await searchParams;
   const user = await requireUser("/account");
-  const [bookings, timeZone] = await Promise.all([listClientBookings(user.id), viewerTimeZone()]);
+  const [bookings, timeZone, slugs] = await Promise.all([
+    listClientBookings(user.id),
+    viewerTimeZone(),
+    getPublicSlugsById(),
+  ]);
   const now = new Date();
   const tab = parseTab(params.tab);
   const counts = { upcoming: 0, past: 0, cancelled: 0 };
@@ -107,7 +112,15 @@ async function AccountContent({ searchParams }: Pick<PageProps<"/account">, "sea
         <ul className="mt-6 space-y-4">
           {visible.map((booking) => (
             <li key={booking.id}>
-              <BookingCard booking={booking} audience="client" timeZone={timeZone} now={now} />
+              <BookingCard
+                booking={booking}
+                audience="client"
+                timeZone={timeZone}
+                now={now}
+                providerHref={
+                  slugs[booking.providerId] ? `/pros/${slugs[booking.providerId]}` : undefined
+                }
+              />
             </li>
           ))}
         </ul>

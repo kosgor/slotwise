@@ -7,6 +7,7 @@ import type { AvailabilityException, AvailabilityRule } from "@/lib/booking/type
 import type { Database } from "@/lib/supabase/database.types";
 import { createPublicClient } from "@/lib/supabase/public";
 
+import { ratingBreakdown, REVIEWS_FIRST_PAGE, type ReviewsPage } from "./reviews";
 import type { Category, ProviderDetails, ProviderSummary, Review, Service } from "./types";
 
 type CatalogRow = Database["public"]["Views"]["catalog_providers"]["Row"];
@@ -78,22 +79,40 @@ export async function loadProviderDetails(slug: string): Promise<ProviderDetails
   if (error) throw new Error(`Failed to load provider: ${error.message}`);
   if (!row) return null;
 
-  const [servicesResult, reviewsResult] = await Promise.all([
+  const [servicesResult, firstReviews, ratingsResult] = await Promise.all([
     supabase.from("services").select("*").eq("provider_id", row.id!).order("price_cents"),
-    supabase
-      .from("reviews")
-      .select("*")
-      .eq("provider_id", row.id!)
-      .order("created_at", { ascending: false }),
+    loadReviewsPage(row.id!, 0, REVIEWS_FIRST_PAGE),
+    // Only the ratings of every review, for the breakdown: small even for hundreds of reviews.
+    supabase.from("reviews").select("rating").eq("provider_id", row.id!),
   ]);
   if (servicesResult.error) throw new Error(servicesResult.error.message);
-  if (reviewsResult.error) throw new Error(reviewsResult.error.message);
+  if (ratingsResult.error) throw new Error(ratingsResult.error.message);
 
   return {
     ...toSummary(row),
     services: servicesResult.data.map(toService),
-    reviews: reviewsResult.data.map(toReview),
+    reviews: firstReviews.reviews,
+    ratingBreakdown: ratingBreakdown(ratingsResult.data.map((r) => r.rating)),
   };
+}
+
+/** One page of a provider's visible reviews, newest first (RLS hides moderated ones). */
+export async function loadReviewsPage(
+  providerId: string,
+  offset: number,
+  limit: number,
+): Promise<ReviewsPage> {
+  const { data, count, error } = await createPublicClient()
+    .from("reviews")
+    .select("*", { count: "exact" })
+    .eq("provider_id", providerId)
+    .order("created_at", { ascending: false })
+    .order("id")
+    .range(offset, offset + limit - 1);
+  // An offset past the end is not an error for a "load more" list: just nothing more.
+  if (error?.code === "PGRST103") return { reviews: [], total: count ?? 0 };
+  if (error) throw new Error(`Failed to load reviews: ${error.message}`);
+  return { reviews: data.map(toReview), total: count ?? 0 };
 }
 
 export async function loadSchedule(
