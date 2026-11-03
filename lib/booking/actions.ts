@@ -3,13 +3,17 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { bookingConfirmed } from "@/inngest/events";
+import { bookingConfirmed, bookingRescheduled } from "@/inngest/events";
 import { safeNext } from "@/lib/auth/redirect";
 import { sendJobs } from "@/lib/jobs";
 import { log } from "@/lib/log";
 import { isStripeConfigured } from "@/lib/stripe/server";
 import { createClient } from "@/lib/supabase/server";
-import { bookSlotSchema, cancelBookingSchema } from "@/lib/validation/booking";
+import {
+  bookSlotSchema,
+  cancelBookingSchema,
+  rescheduleBookingSchema,
+} from "@/lib/validation/booking";
 
 import { cancelAsUser } from "./cancel";
 import { createBookingCheckout, openCheckoutUrl } from "./checkout";
@@ -91,6 +95,51 @@ export async function cancelBooking(
   // the dialog that would show the message disappears with it. The page shows a banner instead.
   const back = safeNext(formData.get("returnTo"), "/account").split("?")[0];
   redirect(`${back}?cancelled=1${refund}`);
+}
+
+/**
+ * Moves a confirmed booking through reschedule_booking(): the database checks who may move it,
+ * the 24-hour rule for clients, the schedule and overlaps. The payment stays with the booking.
+ */
+export async function rescheduleBooking(input: {
+  bookingId: string;
+  startsAt: string;
+}): Promise<BookingActionState> {
+  const parsed = rescheduleBookingSchema.safeParse(input);
+  if (!parsed.success)
+    return { status: "error", code: "invalid_input", message: "Choose a new time first." };
+  const { bookingId, startsAt } = parsed.data;
+
+  const supabase = await createClient();
+  const { data: before } = await supabase
+    .from("bookings")
+    .select("starts_at")
+    .eq("id", bookingId)
+    .maybeSingle();
+  if (!before) return failure({ message: "booking_not_found" });
+
+  const { data: booking, error } = await supabase.rpc("reschedule_booking", {
+    p_booking_id: bookingId,
+    p_starts_at: startsAt,
+  });
+  if (error || !booking || !booking.rescheduled_at) return failure(error);
+
+  await sendJobs(
+    bookingRescheduled.create(
+      {
+        bookingId,
+        by: booking.rescheduled_by === booking.client_id ? "client" : "provider",
+        previousStartsAt: before.starts_at,
+        rescheduledAt: booking.rescheduled_at,
+      },
+      { id: `${bookingId}:rescheduled:${booking.rescheduled_at}` },
+    ),
+  );
+  revalidatePath("/account");
+  revalidatePath(`/account/bookings/${bookingId}`);
+  revalidatePath("/dashboard");
+  revalidatePath("/dashboard/bookings");
+  return { status: "success", message: "The booking was moved. We emailed both of you." };
 }
 
 /** Back to the Stripe page of a hold that is still open. */

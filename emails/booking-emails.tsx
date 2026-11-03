@@ -107,6 +107,46 @@ export function BookingCancelledEmail({
   );
 }
 
+export function BookingRescheduledEmail({
+  booking,
+  previousWhen,
+  audience,
+  movedBy,
+}: {
+  /** With the new time in `when`. */
+  booking: EmailBooking;
+  /** The old time, formatted like `when`. */
+  previousWhen: string;
+  audience: "client" | "provider";
+  movedBy: "client" | "provider";
+}) {
+  const who =
+    movedBy === audience
+      ? "You moved this booking to a new time."
+      : movedBy === "client"
+        ? `${booking.clientName} moved their booking to a new time.`
+        : `${booking.providerName} moved your booking to a new time.`;
+  const [service, , ...rest] = rows(booking, audience === "client" ? "provider" : "client");
+  return (
+    <EmailLayout
+      preview={`Moved: ${booking.serviceTitle}, now ${booking.when}`}
+      heading="Booking moved"
+    >
+      <Paragraph>{who}</Paragraph>
+      <Details rows={[service!, ["New time", booking.when], ["Was", previousWhen], ...rest]} />
+      {audience === "client" && (
+        <Paragraph>
+          The payment stays with the booking. Free cancellation is possible until 24 hours before
+          the new time.
+        </Paragraph>
+      )}
+      <ActionLink href={siteHref(audience === "client" ? "/account" : "/dashboard/bookings")}>
+        {audience === "client" ? "View my bookings" : "Open my bookings"}
+      </ActionLink>
+    </EmailLayout>
+  );
+}
+
 export function RefundIssuedEmail({ booking, amount }: { booking: EmailBooking; amount: string }) {
   return (
     <EmailLayout

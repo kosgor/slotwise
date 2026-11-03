@@ -204,6 +204,7 @@ export function TableViewport({
   view,
   label,
   fit = false,
+  flow = false,
 }: {
   children: React.ReactNode;
   /** Changes whenever the rows do (the table URL): scrolls the box back to the first row. */
@@ -211,12 +212,18 @@ export function TableViewport({
   label: string;
   /** Fill the rest of a TABLE_PAGE_FIT page (table-layout.ts) on wide screens instead of the fixed height. */
   fit?: boolean;
+  /** No box of its own: the rows flow with the page, which scrolls up to them on a new view. */
+  flow?: boolean;
 }) {
   const { pending } = useTableNavigation();
   const box = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    box.current?.scrollTo({ top: 0 });
-  }, [view]);
+    const el = box.current;
+    if (!el) return;
+    if (!flow) el.scrollTo({ top: 0 });
+    // Paging from the bottom of a long list: bring its first row back into view.
+    else if (el.getBoundingClientRect().top < 0) el.scrollIntoView({ block: "start" });
+  }, [view, flow]);
   return (
     // The spinner is outside the scroll box, so it stays centred however far the rows are scrolled.
     <div className={cn("relative", fit && "lg:flex lg:min-h-0 lg:flex-1 lg:flex-col")}>
@@ -225,9 +232,11 @@ export function TableViewport({
         role="region"
         aria-label={label}
         aria-busy={pending || undefined}
-        tabIndex={0}
+        // A scroll box must be reachable by keyboard; flowing rows scroll with the page instead.
+        tabIndex={flow ? undefined : 0}
         className={cn(
-          "relative h-[min(34rem,65vh)] overflow-auto rounded-xl border transition-opacity outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+          "relative rounded-xl transition-opacity outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+          flow ? "min-h-48" : "h-[min(34rem,65vh)] overflow-auto border",
           // A floor for short windows: below it the page scrolls rather than squeezing the rows.
           fit && "lg:h-auto lg:min-h-64 lg:flex-1",
           pending && "opacity-60",

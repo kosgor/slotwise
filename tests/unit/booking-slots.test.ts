@@ -1,7 +1,11 @@
 import { TZDate } from "@date-fns/tz";
 import { describe, expect, it } from "vitest";
 
-import { canClientCancel, clientCancellationDeadline } from "@/lib/booking/rules";
+import {
+  canClientCancel,
+  canClientReschedule,
+  clientCancellationDeadline,
+} from "@/lib/booking/rules";
 import { getAvailableSlots, localDayRange, nextLocalDates } from "@/lib/booking/slots";
 import type { AvailabilityRule } from "@/lib/booking/types";
 
@@ -194,5 +198,14 @@ describe("client cancellation rule", () => {
     expect(clientCancellationDeadline(start).toISOString()).toBe("2026-11-09T10:00:00.000Z");
     expect(canClientCancel(start, new Date("2026-11-09T10:00:00Z"))).toBe(true);
     expect(canClientCancel(start, new Date("2026-11-09T10:00:01Z"))).toBe(false);
+  });
+});
+
+describe("client reschedule rule", () => {
+  const start = new Date("2026-11-10T10:00:00Z");
+
+  it("allows moving a booking until exactly 24 hours before, like cancelling", () => {
+    expect(canClientReschedule(start, new Date("2026-11-09T10:00:00Z"))).toBe(true);
+    expect(canClientReschedule(start, new Date("2026-11-09T10:00:01Z"))).toBe(false);
   });
 });

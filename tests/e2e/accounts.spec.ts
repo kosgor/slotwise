@@ -1,6 +1,7 @@
 // Flows with accounts, against the real Supabase dev project. Users are throwaway (created with the
 // secret key, deleted afterwards). Without SUPABASE_SECRET_KEY in .env.local these tests skip.
 import AxeBuilder from "@axe-core/playwright";
+import { TZDate } from "@date-fns/tz";
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 import Stripe from "stripe";
 
@@ -245,6 +246,213 @@ test("a forged webhook is rejected and changes nothing", async ({ page, isMobile
     headers: { "content-type": "application/json", "stripe-signature": "t=1,v1=forged" },
   });
   expect(res.status()).toBe(400);
+});
+
+test("a client's long booking history is paged and searchable in place", async ({
+  page,
+  isMobile,
+}) => {
+  test.skip(isMobile, "One run is enough");
+  const client = await createTestUser("e2e-history");
+  users.push(client);
+  // Eleven cancelled bookings straight into the database: two pages of ten, no payments needed.
+  // Cancelled ones do not hold the slot, so they never clash with other tests' bookings.
+  const { data: anna } = await adminClient()
+    .from("providers")
+    .select("id")
+    .eq("slug", "anna-yoga")
+    .single();
+  const { data: service } = await adminClient()
+    .from("services")
+    .select("id, provider_id, title, duration_min, price_cents, currency")
+    .eq("provider_id", anna!.id)
+    .limit(1)
+    .single();
+  const day = 24 * 60 * 60 * 1000;
+  const rows = Array.from({ length: 11 }, (_, i) => {
+    const start = new Date(Date.now() - (i + 2) * day);
+    return {
+      provider_id: service!.provider_id,
+      client_id: client.id,
+      service_id: service!.id,
+      starts_at: start.toISOString(),
+      ends_at: new Date(start.getTime() + service!.duration_min * 60_000).toISOString(),
+      status: "cancelled" as const,
+      cancelled_at: start.toISOString(),
+      price_cents: service!.price_cents,
+      currency: service!.currency,
+      service_title: service!.title,
+      duration_min: service!.duration_min,
+      provider_name: "Anna Whitfield",
+      provider_timezone: "Europe/London",
+      client_name: "Test history",
+      client_email: client.email,
+    };
+  });
+  const { error } = await adminClient().from("bookings").insert(rows);
+  expect(error).toBeNull();
+
+  await page.goto("/login?next=/account");
+  await signIn(page, client);
+  await expect(page).toHaveURL("/account");
+  await page.getByRole("link", { name: /^Cancelled/ }).click();
+  await expect(page).toHaveURL("/account?tab=cancelled");
+  await expect(page.getByRole("status").filter({ hasText: "Showing" })).toHaveText(
+    "Showing 1–10 of 11.",
+  );
+  // The provider's name leads to the public profile.
+  await expect(page.getByRole("link", { name: "Anna Whitfield" }).first()).toHaveAttribute(
+    "href",
+    "/pros/anna-yoga",
+  );
+
+  const pager = page.getByRole("navigation", { name: "Pagination" });
+  await pager.getByRole("link", { name: "Page 2" }).locator("visible=true").click();
+  await expect(page).toHaveURL("/account?tab=cancelled&page=2");
+  await expect(page.getByRole("status").filter({ hasText: "Showing" })).toHaveText(
+    "Showing 11–11 of 11.",
+  );
+
+  // Search looks at the professional and the service, and starts again from page 1.
+  await page
+    .getByRole("searchbox", { name: "Search by professional or service" })
+    .fill("whitfield");
+  await expect(page).toHaveURL("/account?tab=cancelled&q=whitfield");
+  await expect(page.getByRole("status").filter({ hasText: "Showing" })).toHaveText(
+    "Showing 1–10 of 11 matching “whitfield”.",
+  );
+  await page.getByRole("searchbox", { name: "Search by professional or service" }).fill("nobody");
+  await expect(page.getByText("No bookings match “nobody”.")).toBeVisible();
+});
+
+test("a client moves a booking, then the provider moves it again from the calendar", async ({
+  page,
+  isMobile,
+}) => {
+  test.skip(isMobile, "Desktop is enough");
+  test.setTimeout(90_000);
+  const client = await createTestUser("e2e-move");
+  const pro = await createTestUser("e2e-move-pro");
+  users.push(client, pro);
+
+  // A public provider of their own, working 09:00–18:00 every day, so any day can take the move.
+  const LONDON = "Europe/London";
+  const applied = await pro.client.rpc("apply_as_provider", {
+    p_display_name: "Mia Move",
+    p_headline: "Reschedule e2e",
+    p_bio: "",
+    p_category: "music",
+    p_city: "Bath",
+    p_timezone: LONDON,
+    p_offers_online: true,
+    p_offers_in_person: false,
+  });
+  expect(applied.error).toBeNull();
+  const providerId = applied.data!.id;
+  const admin = adminClient();
+  await admin.from("providers").update({ status: "approved" }).eq("id", providerId);
+  await admin.from("availability_rules").insert(
+    [1, 2, 3, 4, 5, 6, 7].map((weekday) => ({
+      provider_id: providerId,
+      weekday,
+      start_time: "09:00",
+      end_time: "18:00",
+    })),
+  );
+  const { data: service } = await admin
+    .from("services")
+    .insert({
+      provider_id: providerId,
+      title: "Guitar lesson",
+      duration_min: 60,
+      price_cents: 3000,
+    })
+    .select("id")
+    .single();
+
+  // Times as London wall-clock: "n days from today at h:00".
+  const today = new TZDate(Date.now(), LONDON);
+  const at = (days: number, hour: number) =>
+    new Date(
+      new TZDate(
+        today.getFullYear(),
+        today.getMonth(),
+        today.getDate() + days,
+        hour,
+        0,
+        0,
+        LONDON,
+      ).getTime(),
+    );
+  const dayKey = (d: Date) => new TZDate(d.getTime(), LONDON).toISOString().slice(0, 10);
+  const start = at(3, 10);
+  const { data: booking } = await admin
+    .from("bookings")
+    .insert({
+      provider_id: providerId,
+      client_id: client.id,
+      service_id: service!.id,
+      starts_at: start.toISOString(),
+      ends_at: new Date(start.getTime() + 3_600_000).toISOString(),
+      status: "confirmed",
+      price_cents: 3000,
+      paid_cents: 3000,
+      currency: "GBP",
+      service_title: "Guitar lesson",
+      duration_min: 60,
+      provider_name: "Mia Move",
+      provider_timezone: LONDON,
+      client_name: "Test e2e-move",
+      client_email: client.email,
+    })
+    .select("id")
+    .single();
+  const startsAt = async () =>
+    new Date(
+      (await admin.from("bookings").select("starts_at").eq("id", booking!.id).single()).data!
+        .starts_at,
+    ).getTime();
+
+  /** Picks a day and a time in the open "Move this booking" dialog and confirms. */
+  async function moveTo(to: Date) {
+    const dialog = page.getByRole("dialog", { name: "Move this booking" });
+    // Like a person: click the day and the time (the radios themselves are visually hidden).
+    const option = (value: string) =>
+      dialog.locator("label", { has: page.locator(`input[value="${value}"]`) });
+    await option(dayKey(to)).click();
+    await option(to.toISOString()).click();
+    await dialog.getByRole("button", { name: /^Move to/ }).click();
+    await expect(toasts(page).filter({ hasText: "The booking was moved" })).toBeVisible();
+    await expect(dialog).toBeHidden();
+  }
+
+  // The client moves it from My bookings; the payment stays with it.
+  await page.goto("/login?next=/account");
+  await signIn(page, client);
+  await page.getByRole("button", { name: /^Reschedule/ }).click();
+  const clientMove = at(4, 14);
+  await moveTo(clientMove);
+  await expect.poll(startsAt).toBe(clientMove.getTime());
+  await expect(page.getByText("Rescheduled", { exact: true })).toBeVisible();
+
+  // The provider opens it in the week calendar and moves it again from the details.
+  await page.context().clearCookies();
+  await page.goto(`/login?next=/dashboard/bookings?week=${dayKey(clientMove)}`);
+  await signIn(page, pro);
+  await page.getByRole("button", { name: /Show details/ }).click();
+  const details = page.getByRole("dialog", { name: "Guitar lesson" });
+  await expect(details).toContainText(client.email);
+  await details.getByRole("button", { name: /^Reschedule/ }).click();
+  const providerMove = at(5, 11);
+  await moveTo(providerMove);
+  await expect(details).toBeHidden();
+  await expect.poll(startsAt).toBe(providerMove.getTime());
+  const { data: moved } = await admin
+    .from("bookings")
+    .select("rescheduled_by, paid_cents, status")
+    .eq("id", booking!.id)
+    .single();
+  expect(moved).toEqual({ rescheduled_by: pro.id, paid_cents: 3000, status: "confirmed" });
 });
 
 test("clients cannot open provider and admin areas", async ({ page, isMobile }) => {

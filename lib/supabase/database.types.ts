@@ -198,6 +198,8 @@ export type Database = {
           provider_name: string;
           provider_timezone: string;
           refunded_cents: number;
+          rescheduled_at: string | null;
+          rescheduled_by: string | null;
           service_id: string;
           service_title: string;
           starts_at: string;
@@ -222,6 +224,8 @@ export type Database = {
           provider_name: string;
           provider_timezone: string;
           refunded_cents?: number;
+          rescheduled_at?: string | null;
+          rescheduled_by?: string | null;
           service_id: string;
           service_title: string;
           starts_at: string;
@@ -246,6 +250,8 @@ export type Database = {
           provider_name?: string;
           provider_timezone?: string;
           refunded_cents?: number;
+          rescheduled_at?: string | null;
+          rescheduled_by?: string | null;
           service_id?: string;
           service_title?: string;
           starts_at?: string;
@@ -857,6 +863,8 @@ export type Database = {
           provider_name: string;
           provider_timezone: string;
           refunded_cents: number;
+          rescheduled_at: string | null;
+          rescheduled_by: string | null;
           service_id: string;
           service_title: string;
           starts_at: string;
@@ -890,6 +898,8 @@ export type Database = {
           provider_name: string;
           provider_timezone: string;
           refunded_cents: number;
+          rescheduled_at: string | null;
+          rescheduled_by: string | null;
           service_id: string;
           service_title: string;
           starts_at: string;
@@ -935,6 +945,8 @@ export type Database = {
           provider_name: string;
           provider_timezone: string;
           refunded_cents: number;
+          rescheduled_at: string | null;
+          rescheduled_by: string | null;
           service_id: string;
           service_title: string;
           starts_at: string;
@@ -1014,6 +1026,41 @@ export type Database = {
       replace_document_chunks: {
         Args: { p_chunks: Json; p_document_id: string };
         Returns: number;
+      };
+      reschedule_booking: {
+        Args: { p_booking_id: string; p_starts_at: string };
+        Returns: {
+          cancelled_at: string | null;
+          cancelled_by: string | null;
+          client_email: string;
+          client_id: string;
+          client_name: string;
+          created_at: string;
+          currency: string;
+          duration_min: number;
+          ends_at: string;
+          expires_at: string | null;
+          id: string;
+          paid_cents: number;
+          price_cents: number;
+          provider_id: string;
+          provider_name: string;
+          provider_timezone: string;
+          refunded_cents: number;
+          rescheduled_at: string | null;
+          rescheduled_by: string | null;
+          service_id: string;
+          service_title: string;
+          starts_at: string;
+          status: Database["public"]["Enums"]["booking_status"];
+          stripe_checkout_session_id: string | null;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "bookings";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
       };
       review_provider: {
         Args: { p_decision: string; p_note?: string; p_provider_id: string };

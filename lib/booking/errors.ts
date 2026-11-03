@@ -11,6 +11,10 @@ export const BOOKING_ERROR_MESSAGES = {
   not_cancellable: "This booking can no longer be cancelled.",
   too_late_to_cancel:
     "Free cancellation ended 24 hours before the session. Please contact the professional.",
+  not_reschedulable: "This booking can no longer be moved.",
+  too_late_to_reschedule:
+    "Bookings can be moved until 24 hours before the session. Please contact the professional.",
+  same_time: "The booking is already at this time. Choose another one.",
   already_provider: "You already have a provider profile.",
   invalid_timezone: "Choose a valid time zone.",
   not_owner: "You can only change your own schedule.",

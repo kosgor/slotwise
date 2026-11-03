@@ -401,6 +401,127 @@ describe("cancel_booking", () => {
   });
 });
 
+describe("reschedule_booking", () => {
+  /** A confirmed, paid booking of Anna's class for CLIENT_A, inserted as the database owner. */
+  async function confirmedAt(startsAt: Date, status = "confirmed"): Promise<string> {
+    const { rows } = await db.query<{ id: string }>(
+      `insert into public.bookings (provider_id, client_id, service_id, starts_at, ends_at, status, price_cents,
+         paid_cents, currency, service_title, duration_min, provider_name, provider_timezone, client_name, client_email)
+       values ($1, $2, $3, $4, $4::timestamptz + make_interval(mins => $5), $6, $7, $7, 'GBP', 'Class', $5,
+         'Anna', 'Europe/London', 'Alice', 'a@example.com')
+       returning id`,
+      [
+        anna.id,
+        CLIENT_A,
+        annaClass.id,
+        startsAt.toISOString(),
+        annaClass.durationMin,
+        status,
+        annaClass.priceCents,
+      ],
+    );
+    return rows[0]!.id;
+  }
+  const move = (userId: string, id: string, startsAt: Date) =>
+    asUser<{
+      starts_at: string;
+      ends_at: string;
+      price_cents: number;
+      paid_cents: number;
+      rescheduled_by: string;
+    }>(db, userId, "select * from public.reschedule_booking($1, $2)", [id, startsAt.toISOString()]);
+  const hoursFromNow = (h: number) => new Date(Date.now() + h * 3_600_000);
+
+  it("accepts every slot the TypeScript slot calculation offers (the two rule sets agree)", async () => {
+    const [from] = annaSlots([12]);
+    const slots = annaSlots([13, 14]);
+    expect(slots.length).toBeGreaterThan(8);
+    for (const slot of slots) {
+      await rolledBack(async () => {
+        const id = await confirmedAt(from!);
+        expect(new Date((await move(CLIENT_A, id, slot))[0]!.starts_at)).toEqual(slot);
+      });
+    }
+  });
+
+  it("moves the same booking: price and payment stay, the old time is free again", async () => {
+    await rolledBack(async () => {
+      const [from] = annaSlots([15]);
+      const [to] = annaSlots([16]);
+      const id = await confirmedAt(from!);
+      const [moved] = await move(CLIENT_A, id, to!);
+      expect(new Date(moved!.starts_at)).toEqual(to);
+      expect(new Date(moved!.ends_at).getTime() - to!.getTime()).toBe(
+        annaClass.durationMin * 60_000,
+      );
+      expect(moved!.price_cents).toBe(annaClass.priceCents);
+      expect(moved!.paid_cents).toBe(annaClass.priceCents);
+      expect(moved!.rescheduled_by).toBe(CLIENT_A);
+      expect((await book(CLIENT_B, from!)).status).toBe("pending_payment");
+    });
+  });
+
+  it("refuses a late move by the client but allows it for the provider", async () => {
+    await rolledBack(async () => {
+      const id = await confirmedAt(hoursFromNow(5));
+      const [to] = annaSlots([17]);
+      await expect(move(CLIENT_A, id, to!)).rejects.toThrow(/too_late_to_reschedule/);
+      expect((await move(PROVIDER, id, to!))[0]!.rescheduled_by).toBe(PROVIDER);
+    });
+  });
+
+  it("answers 'not found' to strangers and refuses anonymous visitors", async () => {
+    await rolledBack(async () => {
+      const [from] = annaSlots([18]);
+      const [to] = annaSlots([19]);
+      const id = await confirmedAt(from!);
+      await expect(move(CLIENT_B, id, to!)).rejects.toThrow(/booking_not_found/);
+      await expect(move(OTHER_PROVIDER, id, to!)).rejects.toThrow(/booking_not_found/);
+      await expect(
+        asAnon(db, "select public.reschedule_booking($1, $2)", [id, to!.toISOString()]),
+      ).rejects.toThrow(/permission denied/);
+    });
+  });
+
+  it("follows the booking rules: schedule, same time, taken time, overlap with itself", async () => {
+    await rolledBack(async () => {
+      const [from, next] = annaSlots([20]);
+      const [taken] = annaSlots([21]);
+      const id = await confirmedAt(from!);
+      await expect(move(PROVIDER, id, new Date(from!.getTime() + 15 * 60_000))).rejects.toThrow(
+        /slot_unavailable/,
+      );
+      await expect(move(PROVIDER, id, hoursFromNow(0.5))).rejects.toThrow(/slot_unavailable/);
+      await expect(move(CLIENT_A, id, from!)).rejects.toThrow(/same_time/);
+      await book(CLIENT_B, taken!);
+      await expect(move(CLIENT_A, id, taken!)).rejects.toThrow(/slot_taken/);
+      // Half an hour later overlaps only the booking's own old time.
+      expect(new Date((await move(CLIENT_A, id, next!))[0]!.starts_at)).toEqual(next);
+    });
+  });
+
+  it("moves only confirmed bookings", async () => {
+    await rolledBack(async () => {
+      const [from] = annaSlots([22]);
+      const [to] = annaSlots([23]);
+      const cancelled = await confirmedAt(from!, "cancelled");
+      await expect(move(CLIENT_A, cancelled, to!)).rejects.toThrow(/not_reschedulable/);
+      const hold = await confirmedAt(from!, "pending_payment");
+      await expect(move(CLIENT_A, hold, to!)).rejects.toThrow(/not_reschedulable/);
+    });
+  });
+
+  it("is not available while the provider is suspended", async () => {
+    await rolledBack(async () => {
+      const [from] = annaSlots([24]);
+      const [to] = annaSlots([25]);
+      const id = await confirmedAt(from!);
+      await db.query("update public.providers set status = 'suspended' where id = $1", [anna.id]);
+      await expect(move(CLIENT_A, id, to!)).rejects.toThrow(/not_reschedulable/);
+    });
+  });
+});
+
 describe("replace_availability_rules", () => {
   const rules = (list: [number, string, string][]) =>
     JSON.stringify(

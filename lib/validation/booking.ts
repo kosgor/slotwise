@@ -20,3 +20,16 @@ export const bookSlotSchema = z.object({
 });
 
 export const cancelBookingSchema = z.object({ bookingId: z.uuid() });
+
+/** rescheduleBooking() input: the booking and its new start; the length comes from the booking. */
+export const rescheduleBookingSchema = z.object({
+  bookingId: z.uuid(),
+  startsAt: z.iso.datetime({ offset: true }),
+});
+
+/** Free times for moving a booking: one calendar day in the viewer's time zone. */
+export const rescheduleSlotsSchema = z.object({
+  bookingId: z.uuid(),
+  date: dateKey,
+  tz: timeZone,
+});

@@ -1,5 +1,6 @@
 // Free start times of one service on one calendar day in the viewer's time zone: the cached
-// schedule plus fresh busy intervals. Used by GET /api/slots and by the AI concierge's tools.
+// schedule plus fresh busy intervals. Used by GET /api/slots, GET /api/bookings/[id]/slots (moving a
+// booking) and by the AI concierge's tools.
 
 import "server-only";
 
@@ -20,6 +21,8 @@ export type FreeSlotsInput = {
   date: string;
   viewerTimeZone: string;
   now: Date;
+  /** A booking being moved: its own time does not count as busy (it may move by half an hour). */
+  ignore?: { startsAt: Date; endsAt: Date };
 };
 
 /** Free slots, or null when busy times could not be loaded (show "unavailable", not "none"). */
@@ -37,7 +40,14 @@ export async function loadFreeSlots(input: FreeSlotsInput): Promise<Date[] | nul
 
   return getAvailableSlots({
     ...schedule,
-    busy: busy.data.map((b) => ({ startsAt: new Date(b.starts_at), endsAt: new Date(b.ends_at) })),
+    busy: busy.data
+      .map((b) => ({ startsAt: new Date(b.starts_at), endsAt: new Date(b.ends_at) }))
+      .filter(
+        (b) =>
+          !input.ignore ||
+          b.startsAt.getTime() !== input.ignore.startsAt.getTime() ||
+          b.endsAt.getTime() !== input.ignore.endsAt.getTime(),
+      ),
     durationMin: input.durationMin,
     timeZone: input.providerTimeZone,
     from,

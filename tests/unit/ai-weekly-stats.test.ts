@@ -26,6 +26,7 @@ const b = (patch: Partial<Booking>): Booking => ({
   expiresAt: null,
   paidCents: 5000,
   refundedCents: 0,
+  rescheduledAt: null,
   ...patch,
 });
 

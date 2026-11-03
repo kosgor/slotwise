@@ -31,12 +31,16 @@ export async function providerEmail(
   return data.user?.email ?? null;
 }
 
+/** "Tuesday 3 November 2026, 10:00 (London time)": a time for emails, with the zone named. */
+export function emailWhen(iso: string, timeZone: string): string {
+  return `${formatDateTime(new Date(iso), timeZone)} (${zoneLabel(timeZone)})`;
+}
+
 /** Display strings for email templates. Times in the provider's zone, with the zone named. */
 export function toEmailBooking(b: BookingRow): EmailBooking {
-  const start = new Date(b.starts_at);
   return {
     serviceTitle: b.service_title,
-    when: `${formatDateTime(start, b.provider_timezone)} (${zoneLabel(b.provider_timezone)})`,
+    when: emailWhen(b.starts_at, b.provider_timezone),
     duration: formatDuration(b.duration_min),
     price: b.price_cents === 0 ? "Free" : formatPrice(b.price_cents, b.currency),
     providerName: b.provider_name,

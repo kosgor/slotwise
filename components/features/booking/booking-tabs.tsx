@@ -56,7 +56,3 @@ export function BookingTabs({
     </nav>
   );
 }
-
-export function parseTab(value: unknown): BookingTab {
-  return value === "past" || value === "cancelled" ? value : "upcoming";
-}

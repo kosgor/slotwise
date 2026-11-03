@@ -114,6 +114,7 @@ npm run db:backup          # дамп ролей, схемы и данных (н
 - [AI-консьерж: права, подтверждения, RAG и лимиты](docs/decisions/0011-ai-concierge.md)
 - [Админка, журнал действий и наблюдаемость](docs/decisions/0012-admin-audit-observability.md)
 - [Сервис для Великобритании: фунты, en-GB, британский каталог](docs/decisions/0013-uk-market.md)
+- [Перенос брони на другое время](docs/decisions/0014-reschedule.md)
 
 ## Как я использовал AI и как проверял
 

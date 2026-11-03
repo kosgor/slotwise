@@ -20,6 +20,20 @@ export const bookingCancelled = eventType("booking/cancelled", {
 });
 
 /**
+ * A confirmed booking moved to another time (reschedule_booking()). Tells both sides and schedules
+ * the reminder for the new time. `previousStartsAt` is the old time, for the email;
+ * `rescheduledAt` tells one move from the next (email idempotency keys).
+ */
+export const bookingRescheduled = eventType("booking/rescheduled", {
+  schema: z.object({
+    bookingId: z.uuid(),
+    by: z.enum(["client", "provider"]),
+    previousStartsAt: z.iso.datetime({ offset: true }),
+    rescheduledAt: z.iso.datetime({ offset: true }),
+  }),
+});
+
+/**
  * An admin removed a provider (remove_provider()). Carries what the database cancelled, so the job
  * refunds exactly those bookings, and who to email: the name from before it was anonymised and the
  * account the row was detached from (null for a seed profile without one).

@@ -121,6 +121,7 @@ async function Bookings({ searchParams }: Pick<PageProps<"/dashboard/bookings">,
             today={today}
             bookings={week}
             timeZone={tz}
+            now={now}
             weekHref={(m) => bookingsHref({ ...query, week: m ?? undefined })}
             LinkComponent={TableLink}
           />

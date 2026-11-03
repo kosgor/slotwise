@@ -8,6 +8,7 @@ import {
   BookingCancelledEmail,
   BookingConfirmedEmail,
   BookingReminderEmail,
+  BookingRescheduledEmail,
   NewBookingEmail,
   RefundIssuedEmail,
   SlotLostEmail,
@@ -21,7 +22,7 @@ import {
 } from "@/lib/ai/documents";
 import { closeCheckout } from "@/lib/booking/checkout";
 import { bookingsOwedRefund, refundBooking } from "@/lib/booking/refunds";
-import { loadBooking, providerEmail, toEmailBooking } from "@/lib/booking/server-data";
+import { emailWhen, loadBooking, providerEmail, toEmailBooking } from "@/lib/booking/server-data";
 import { formatPrice } from "@/lib/catalog/format";
 import { PermanentEmailError, sendEmail, type EmailMessage } from "@/lib/email/send";
 import { isStripeConfigured, siteUrl, stripe } from "@/lib/stripe/server";
@@ -33,6 +34,7 @@ import {
   bookingConfirmed,
   bookingRefunded,
   bookingRefundNeeded,
+  bookingRescheduled,
   documentUploaded,
   providerRemoved,
   providerReviewed,
@@ -148,6 +150,76 @@ export const bookingCancelledJob = inngest.createFunction(
           />
         ),
         idempotencyKey: `cancelled-provider:${bookingId}`,
+      });
+    });
+  },
+);
+
+export const bookingRescheduledJob = inngest.createFunction(
+  {
+    id: "booking-rescheduled",
+    triggers: [bookingRescheduled],
+    retries: 5,
+    cancelOn: [{ event: bookingCancelled, match: "data.bookingId" }],
+  },
+  async ({ event, step }) => {
+    const { bookingId, by, previousStartsAt, rescheduledAt } = event.data;
+    const admin = createAdminClient();
+    const booking = await step.run("load-booking", () => loadBooking(admin, bookingId));
+    const details = toEmailBooking(booking);
+    const previousWhen = emailWhen(previousStartsAt, booking.provider_timezone);
+    const move = `${bookingId}:${rescheduledAt}`;
+
+    await step.run("email-client", () =>
+      email({
+        to: booking.client_email,
+        subject: `Moved: ${booking.service_title}, now ${details.when}`,
+        react: (
+          <BookingRescheduledEmail
+            booking={details}
+            previousWhen={previousWhen}
+            audience="client"
+            movedBy={by}
+          />
+        ),
+        idempotencyKey: `rescheduled-client:${move}`,
+      }),
+    );
+    await step.run("email-provider", async () => {
+      const to = await providerEmail(admin, booking.provider_id);
+      if (!to) return "no-provider-account";
+      return email({
+        to,
+        subject: `Moved: ${booking.service_title}, now ${details.when}`,
+        react: (
+          <BookingRescheduledEmail
+            booking={details}
+            previousWhen={previousWhen}
+            audience="provider"
+            movedBy={by}
+          />
+        ),
+        idempotencyKey: `rescheduled-provider:${move}`,
+      });
+    });
+
+    // The reminder of the old time (booking-confirmed, or an earlier move) sees the new start and
+    // skips itself; this run reminds about the new one.
+    const remindAt = new Date(
+      new Date(booking.starts_at).getTime() - REMINDER_HOURS_BEFORE * 3_600_000,
+    );
+    if (remindAt.getTime() <= Date.now()) return { reminder: "too-close" };
+    await step.sleepUntil("wait-for-reminder", remindAt);
+
+    return step.run("email-reminder", async () => {
+      const current = await loadBooking(admin, bookingId);
+      if (current.status !== "confirmed" || current.starts_at !== booking.starts_at)
+        return "skipped";
+      return email({
+        to: current.client_email,
+        subject: `Tomorrow: ${current.service_title} with ${current.provider_name}`,
+        react: <BookingReminderEmail booking={toEmailBooking(current)} />,
+        idempotencyKey: `reminder:${move}`,
       });
     });
   },
@@ -400,6 +472,7 @@ export const functions = [
   providerRemovedJob,
   bookingConfirmedJob,
   bookingCancelledJob,
+  bookingRescheduledJob,
   bookingRefundedJob,
   bookingRefundNeededJob,
   expireHoldsJob,

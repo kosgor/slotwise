@@ -56,4 +56,6 @@ export type Booking = {
   expiresAt: string | null;
   paidCents: number;
   refundedCents: number;
+  /** Last time the booking was moved to another time, or null. */
+  rescheduledAt: string | null;
 };

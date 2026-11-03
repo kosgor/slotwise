@@ -3,7 +3,9 @@ import Link from "next/link";
 
 import { addDays, dateKeyIn, weekDays } from "@/lib/booking/calendar";
 import type { Booking } from "@/lib/booking/types";
-import { dateKeyToDate, formatDayShort, formatTime, zoneLabel } from "@/lib/datetime";
+
+import { CalendarBooking } from "./calendar-booking";
+import { dateKeyToDate, formatDayShort, zoneLabel } from "@/lib/datetime";
 import { cn } from "@/lib/utils";
 
 /**
@@ -17,6 +19,7 @@ export function WeekCalendar({
   bookings,
   timeZone,
   weekHref,
+  now,
   LinkComponent = Link,
 }: {
   monday: string;
@@ -25,6 +28,7 @@ export function WeekCalendar({
   timeZone: string;
   /** The page URL for a week (its Monday), or for the current week when null. */
   weekHref: (monday: string | null) => string;
+  now: Date;
   LinkComponent?: React.ComponentType<React.ComponentProps<typeof Link> & { href: string }>;
 }) {
   const days = weekDays(monday);
@@ -85,20 +89,12 @@ export function WeekCalendar({
               ) : (
                 <ul className="mt-2 space-y-1.5">
                   {list.map((b) => (
-                    <li
-                      key={b.id}
-                      className={cn(
-                        "rounded-md border-l-2 border-primary bg-background px-2 py-1 text-xs",
-                        b.status === "cancelled" &&
-                          "border-muted-foreground line-through opacity-70",
-                      )}
-                    >
-                      <span className="font-medium">
-                        {formatTime(new Date(b.startsAt), timeZone)}
-                      </span>{" "}
-                      {b.serviceTitle}
-                      <span className="block text-muted-foreground">{b.clientName}</span>
-                      {b.status === "cancelled" && <span className="sr-only"> (cancelled)</span>}
+                    <li key={b.id}>
+                      <CalendarBooking
+                        booking={b}
+                        timeZone={timeZone}
+                        upcoming={b.status === "confirmed" && new Date(b.startsAt) > now}
+                      />
                     </li>
                   ))}
                 </ul>

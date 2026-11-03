@@ -2,6 +2,7 @@ import { CalendarIcon, ClockIcon, CreditCardIcon, UserIcon } from "lucide-react"
 import Link from "next/link";
 
 import { CancelBookingDialog } from "@/components/features/booking/cancel-booking-dialog";
+import { RescheduleDialog } from "@/components/features/booking/reschedule-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { canClientCancel, clientCancellationDeadline } from "@/lib/booking/rules";
@@ -62,6 +63,9 @@ export function BookingCard({
           <h3 className="font-semibold">{booking.serviceTitle}</h3>
           {/* Status as text, not only colour. */}
           <Badge className={STATUS_CLASS[status]}>{STATUS_LABEL[status]}</Badge>
+          {booking.rescheduledAt && status === "confirmed" && (
+            <Badge variant="outline">Rescheduled</Badge>
+          )}
         </div>
         <ul className="space-y-1 text-sm text-muted-foreground">
           <li className="flex items-center gap-2">
@@ -129,33 +133,53 @@ export function BookingCard({
       )}
 
       {upcoming && (
-        <div className="shrink-0 sm:text-right">
+        <div className="flex shrink-0 flex-wrap gap-2 sm:justify-end">
           {audience === "provider" ? (
-            <CancelBookingDialog
-              bookingId={booking.id}
-              summary={summary}
-              policy={
-                booking.paidCents > 0
-                  ? "The client gets a full refund and an email."
-                  : "The client will see the booking as cancelled."
-              }
-              returnTo="/dashboard/bookings"
-            />
+            <>
+              <RescheduleDialog
+                bookingId={booking.id}
+                summary={summary}
+                startsAt={booking.startsAt}
+                durationMin={booking.durationMin}
+                timeZone={tz}
+              />
+              <CancelBookingDialog
+                bookingId={booking.id}
+                summary={summary}
+                policy={
+                  booking.paidCents > 0
+                    ? "The client gets a full refund and an email."
+                    : "The client will see the booking as cancelled."
+                }
+                returnTo="/dashboard/bookings"
+              />
+            </>
           ) : clientCanCancel ? (
-            <CancelBookingDialog
-              bookingId={booking.id}
-              summary={summary}
-              policy={
-                booking.paidCents > 0
-                  ? `You will get a full refund of ${formatPrice(booking.paidCents - booking.refundedCents, booking.currency)}.`
-                  : "Cancellation is free until 24 hours before the session."
-              }
-              returnTo="/account"
-            />
+            <>
+              {/* Same 24-hour window as cancelling (rules.ts), so both are offered together. */}
+              <RescheduleDialog
+                bookingId={booking.id}
+                summary={summary}
+                startsAt={booking.startsAt}
+                durationMin={booking.durationMin}
+                timeZone={timeZone ?? undefined}
+              />
+              <CancelBookingDialog
+                bookingId={booking.id}
+                summary={summary}
+                policy={
+                  booking.paidCents > 0
+                    ? `You will get a full refund of ${formatPrice(booking.paidCents - booking.refundedCents, booking.currency)}.`
+                    : "Cancellation is free until 24 hours before the session."
+                }
+                returnTo="/account"
+              />
+            </>
           ) : (
-            <p className="max-w-56 text-sm text-muted-foreground">
-              Free cancellation ended {formatDateTime(clientCancellationDeadline(start), tz)}.
-              Please contact {booking.providerName}.
+            <p className="max-w-56 text-sm text-muted-foreground sm:text-right">
+              Changes and free cancellation ended{" "}
+              {formatDateTime(clientCancellationDeadline(start), tz)}. Please contact{" "}
+              {booking.providerName}.
             </p>
           )}
         </div>

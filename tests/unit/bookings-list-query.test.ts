@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { bookingsFilter, bookingsHref, parseBookingsQuery } from "@/lib/booking/list-query";
+import {
+  bookingsFilter,
+  bookingsHref,
+  parseBookingsQuery,
+  SEARCH_IN,
+} from "@/lib/booking/list-query";
 
 const NOW = new Date("2026-10-29T12:00:00.000Z");
 
@@ -51,5 +56,18 @@ describe("provider bookings list query", () => {
       ),
     ).toBe(true);
     expect(filter.startsWith("and(and(")).toBe(true);
+  });
+
+  it("searches the client's own columns: professional and service", () => {
+    expect(bookingsFilter("upcoming", NOW, "anna", SEARCH_IN.client)).toContain(
+      ',or(provider_name.ilike."%anna%",service_title.ilike."%anna%"))',
+    );
+  });
+
+  it("builds the client's links on /account", () => {
+    expect(bookingsHref(parseBookingsQuery({ tab: "past", page: "2" }), "/account")).toBe(
+      "/account?tab=past&page=2",
+    );
+    expect(bookingsHref(parseBookingsQuery({}), "/account")).toBe("/account");
   });
 });

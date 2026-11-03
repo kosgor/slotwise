@@ -1,6 +1,6 @@
-// Booking rules. The database enforces the same numbers inside book_slot(), cancel_booking() and
-// extend_payment_hold() (supabase/migrations/20261019000000_accounts_and_booking.sql,
-// 20261020000000_payments.sql); tests/rls checks they agree. Change one — change both.
+// Booking rules. The database enforces the same numbers inside book_slot(), cancel_booking(),
+// extend_payment_hold() and reschedule_booking() (supabase/migrations/20261020000000_payments.sql,
+// 20261103000000_reschedule.sql); tests/rls checks they agree. Change one — change both.
 
 /** Slots start on a 30-minute grid counted from the start of the working-hours rule. */
 export const SLOT_STEP_MINUTES = 30;
@@ -10,6 +10,8 @@ export const MIN_NOTICE_MINUTES = 60;
 export const MAX_ADVANCE_DAYS = 60;
 /** Clients cancel for free until 24 hours before the start. */
 export const CLIENT_CANCELLATION_HOURS = 24;
+/** Clients move a booking in the same window, so moving never gets around the cancellation rule. */
+export const CLIENT_RESCHEDULE_HOURS = CLIENT_CANCELLATION_HOURS;
 /** A paid booking holds the slot this long while the client pays. */
 export const PAYMENT_HOLD_MINUTES = 15;
 /** Extending a hold never goes past this many minutes after booking… */
@@ -29,4 +31,9 @@ export function clientCancellationDeadline(startsAt: Date): Date {
 /** Mirrors cancel_booking(): a client may cancel while the start is at least 24 hours away. */
 export function canClientCancel(startsAt: Date, now: Date): boolean {
   return now.getTime() <= clientCancellationDeadline(startsAt).getTime();
+}
+
+/** Mirrors reschedule_booking(): a client may move a booking while the start is at least 24 hours away. */
+export function canClientReschedule(startsAt: Date, now: Date): boolean {
+  return startsAt.getTime() - now.getTime() >= CLIENT_RESCHEDULE_HOURS * HOUR;
 }

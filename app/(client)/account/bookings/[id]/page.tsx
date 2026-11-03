@@ -5,11 +5,13 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
 import { PaymentStatus } from "@/components/features/booking/payment-status";
+import { RescheduleDialog } from "@/components/features/booking/reschedule-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { requireUser } from "@/lib/auth/guards";
 import { toBooking } from "@/lib/booking/queries";
+import { canClientReschedule } from "@/lib/booking/rules";
 import { formatDuration, formatPrice } from "@/lib/catalog/format";
-import { formatDateTime, zoneLabel } from "@/lib/datetime";
+import { formatDateTime, formatDayLong, formatTime, zoneLabel } from "@/lib/datetime";
 import { createClient } from "@/lib/supabase/server";
 import { viewerTimeZone } from "@/lib/viewer-timezone";
 
@@ -56,6 +58,8 @@ async function PaymentContent({
   const booking = toBooking(row);
   const tz = (await viewerTimeZone()) ?? booking.providerTimezone;
   const start = new Date(booking.startsAt);
+  // The database decides (reschedule_booking()); this only decides whether to offer it.
+  const movable = booking.status === "confirmed" && canClientReschedule(start, new Date());
 
   return (
     <>
@@ -94,6 +98,20 @@ async function PaymentContent({
           </dd>
         </div>
       </dl>
+      {movable && (
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <RescheduleDialog
+            bookingId={booking.id}
+            summary={`${booking.serviceTitle}, ${formatDayLong(start, tz)}, ${formatTime(start, tz)}`}
+            startsAt={booking.startsAt}
+            durationMin={booking.durationMin}
+            timeZone={tz}
+          />
+          <p className="text-sm text-muted-foreground">
+            You can move it until 24 hours before the session.
+          </p>
+        </div>
+      )}
       <div className="mt-8">
         <PaymentStatus
           bookingId={booking.id}

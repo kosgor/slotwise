@@ -30,6 +30,7 @@ export function toBooking(row: BookingRow): Booking {
     expiresAt: row.expires_at,
     paidCents: row.paid_cents,
     refundedCents: row.refunded_cents,
+    rescheduledAt: row.rescheduled_at,
   };
 }
 

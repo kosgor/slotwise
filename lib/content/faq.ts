@@ -8,7 +8,7 @@ export const FAQ_ITEMS = [
   {
     question: "Can I cancel or reschedule?",
     answer:
-      "Yes. Cancellations more than 24 hours before the session are free and fully refunded. Later cancellations follow the professional's own policy shown on their profile.",
+      "Yes. Until 24 hours before the session you can move it to another free time in My bookings, or cancel it for free with a full refund. Moving keeps your payment. Later changes follow the professional's own policy shown on their profile.",
   },
   {
     question: "Are sessions online or in person?",

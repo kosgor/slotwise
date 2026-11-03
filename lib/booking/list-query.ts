@@ -1,4 +1,5 @@
-// State of the provider's bookings list, kept in the URL (?tab=&q=&page=&week=), like the admin
+// State of a bookings list (the provider's /dashboard/bookings and the client's /account), kept in
+// the URL (?tab=&q=&page=&week=), like the admin
 // tables: it works without JavaScript, survives a reload and can be shared. Parsing never fails.
 // The tab filters mirror bookingTab() (lib/booking/queries.ts), so the database returns exactly
 // the bookings the old in-memory filter showed — including a payment hold whose 15 minutes are
@@ -33,15 +34,15 @@ export function parseBookingsQuery(params: Params): BookingsQuery {
   };
 }
 
-/** /dashboard/bookings with the list state; defaults are left out. The calendar week is kept. */
-export function bookingsHref(query: BookingsQuery): string {
+/** The list page with its state; defaults are left out. The calendar week is kept. */
+export function bookingsHref(query: BookingsQuery, basePath = "/dashboard/bookings"): string {
   const params = new URLSearchParams();
   if (query.tab !== "upcoming") params.set("tab", query.tab);
   if (query.q) params.set("q", query.q);
   if (query.page > 1) params.set("page", String(query.page));
   if (query.week) params.set("week", query.week);
   const search = params.toString();
-  return search ? `/dashboard/bookings?${search}` : "/dashboard/bookings";
+  return search ? `${basePath}?${search}` : basePath;
 }
 
 /** A PostgREST value in double quotes: commas, dots and parentheses stay plain text. */
@@ -54,12 +55,23 @@ function contains(term: string): string {
   return `%${term.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
 }
 
+/** Columns the search looks in: a provider looks for clients, a client for providers. */
+export const SEARCH_IN = {
+  provider: ["client_name", "client_email", "service_title"],
+  client: ["provider_name", "service_title"],
+} as const;
+
 /**
  * One PostgREST `or` filter for a tab (and the search, if any), to pass to `.or()`. A single
  * expression because supabase-js joins several `.or()` calls into one `or` parameter, which would
  * turn the tab's conditions and the search into alternatives instead of requirements.
  */
-export function bookingsFilter(tab: BookingTab, now: Date, q = ""): string {
+export function bookingsFilter(
+  tab: BookingTab,
+  now: Date,
+  q = "",
+  searchIn: readonly string[] = SEARCH_IN.provider,
+): string {
   const at = quoted(now.toISOString());
   // A hold is over once its time is up, before the job marks it "expired".
   const lapsed = `and(status.eq.pending_payment,expires_at.lte.${at})`;
@@ -71,6 +83,6 @@ export function bookingsFilter(tab: BookingTab, now: Date, q = ""): string {
       : `and(${live},starts_at.${tab === "upcoming" ? "gte" : "lt"}.${at})`;
   if (!q) return `and(${condition})`;
   const like = quoted(contains(q));
-  const search = `or(client_name.ilike.${like},client_email.ilike.${like},service_title.ilike.${like})`;
+  const search = `or(${searchIn.map((column) => `${column}.ilike.${like}`).join(",")})`;
   return `and(${condition},${search})`;
 }

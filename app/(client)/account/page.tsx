@@ -1,17 +1,35 @@
 import { BotIcon, CalendarPlusIcon } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Suspense } from "react";
 
+import {
+  TableLink,
+  TableNavigationProvider,
+  TableSearch,
+  TableViewport,
+} from "@/components/data-view/table-navigation";
 import { BookingCard } from "@/components/features/booking/booking-card";
-import { BookingTabs, parseTab } from "@/components/features/booking/booking-tabs";
+import { BookingTabs } from "@/components/features/booking/booking-tabs";
+import { Pagination } from "@/components/features/catalog/pagination";
 import { FlashToast } from "@/components/forms/toasts";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { requireUser } from "@/lib/auth/guards";
 import { displayName } from "@/lib/auth/session";
-import { bookingTab, listClientBookings, type BookingTab } from "@/lib/booking/queries";
+import {
+  BOOKING_TABS,
+  BOOKINGS_PAGE_SIZE,
+  bookingsFilter,
+  bookingsHref,
+  parseBookingsQuery,
+  SEARCH_IN,
+  type BookingsQuery,
+} from "@/lib/booking/list-query";
+import { toBooking, type BookingTab } from "@/lib/booking/queries";
 import { getPublicSlugsById } from "@/lib/catalog/repository";
+import { createClient } from "@/lib/supabase/server";
 import { viewerTimeZone } from "@/lib/viewer-timezone";
 
 export const metadata: Metadata = { title: "My bookings", robots: { index: false } };
@@ -35,21 +53,49 @@ export default function AccountPage({ searchParams }: PageProps<"/account">) {
 async function AccountContent({ searchParams }: Pick<PageProps<"/account">, "searchParams">) {
   const params = await searchParams;
   const user = await requireUser("/account");
-  const [bookings, timeZone, slugs] = await Promise.all([
-    listClientBookings(user.id),
+  const query = parseBookingsQuery(params);
+  const now = new Date();
+
+  // Filtered, searched and paginated in the database, like the provider's list; RLS limits it to
+  // this client's bookings anyway. Upcoming soonest first, past and cancelled newest first.
+  const supabase = await createClient();
+  const matching = (tab: BookingTab, head = false) =>
+    supabase
+      .from("bookings")
+      .select("*", { count: "exact", head })
+      .eq("client_id", user.id)
+      .or(bookingsFilter(tab, now, query.q, SEARCH_IN.client));
+  const from = (query.page - 1) * BOOKINGS_PAGE_SIZE;
+
+  const [page, timeZone, slugs, ...tabCounts] = await Promise.all([
+    matching(query.tab)
+      .order("starts_at", { ascending: query.tab === "upcoming" })
+      .order("id")
+      .range(from, from + BOOKINGS_PAGE_SIZE - 1),
     viewerTimeZone(),
     getPublicSlugsById(),
+    ...BOOKING_TABS.map((tab) => matching(tab, true)),
   ]);
-  const now = new Date();
-  const tab = parseTab(params.tab);
-  const counts = { upcoming: 0, past: 0, cancelled: 0 };
-  for (const b of bookings) counts[bookingTab(b, now)]++;
-  // Past sessions newest first; upcoming soonest first.
-  const visible = bookings.filter((b) => bookingTab(b, now) === tab);
-  if (tab !== "upcoming") visible.reverse();
+  const counts = Object.fromEntries(
+    BOOKING_TABS.map((tab, i) => [tab, tabCounts[i]?.count ?? 0]),
+  ) as Record<BookingTab, number>;
+  const total = page.count ?? 0;
+  const href = (patch: Partial<BookingsQuery>) => bookingsHref({ ...query, ...patch }, "/account");
+
+  // A page past the end (a booking moved to another tab, a hand-edited URL): the last page.
+  const pastEnd =
+    page.error?.code === "PGRST103" ||
+    (!page.error && query.page > 1 && page.data.length === 0 && total > 0);
+  if (pastEnd) redirect(href({ page: Math.max(1, Math.ceil(total / BOOKINGS_PAGE_SIZE)) }));
+  if (page.error) throw new Error(`Loading bookings: ${page.error.message}`);
+
+  const bookings = page.data.map(toBooking);
+  const pageCount = Math.max(1, Math.ceil(total / BOOKINGS_PAGE_SIZE));
+  const first = from + 1;
+  const keep = new URLSearchParams(href({ q: "", page: 1 }).split("?")[1] ?? "");
 
   return (
-    <>
+    <TableNavigationProvider>
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight">
@@ -95,37 +141,81 @@ async function AccountContent({ searchParams }: Pick<PageProps<"/account">, "sea
         <FlashToast message="Your password was updated." params={["passwordUpdated"]} />
       )}
 
-      <div className="mt-8">
-        <BookingTabs basePath="/account" active={tab} counts={counts} />
+      <div className="mt-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <BookingTabs
+          basePath="/account"
+          active={query.tab}
+          counts={counts}
+          hrefFor={(tab) => href({ tab, page: 1 })}
+          LinkComponent={TableLink}
+        />
+        <TableSearch
+          q={query.q}
+          action="/account"
+          hidden={[...keep]}
+          label="Search by professional or service"
+        />
       </div>
 
-      {visible.length === 0 ? (
-        <div className="mt-6 rounded-xl border border-dashed p-10 text-center">
-          <p className="text-muted-foreground">{EMPTY[tab]}</p>
-          {tab === "upcoming" && (
-            <Button asChild variant="outline" className="mt-4">
-              <Link href="/pros">Find a professional</Link>
-            </Button>
+      <p role="status" className="mt-4 text-sm text-muted-foreground">
+        {total === 0
+          ? "No bookings found."
+          : `Showing ${first}–${first + bookings.length - 1} of ${total}${query.q ? ` matching “${query.q}”` : ""}.`}
+      </p>
+
+      <div className="mt-4">
+        <TableViewport view={href({})} label="Bookings" flow>
+          {bookings.length === 0 ? (
+            <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed p-10 text-center">
+              {query.q ? (
+                <>
+                  <p className="text-muted-foreground">No bookings match “{query.q}”.</p>
+                  <TableLink
+                    href={href({ q: "", page: 1 })}
+                    className="font-medium text-primary underline-offset-4 hover:underline"
+                  >
+                    Clear the search
+                  </TableLink>
+                </>
+              ) : (
+                <>
+                  <p className="text-muted-foreground">{EMPTY[query.tab]}</p>
+                  {query.tab === "upcoming" && (
+                    <Button asChild variant="outline">
+                      <Link href="/pros">Find a professional</Link>
+                    </Button>
+                  )}
+                </>
+              )}
+            </div>
+          ) : (
+            <ul className="space-y-4">
+              {bookings.map((booking) => (
+                <li key={booking.id}>
+                  <BookingCard
+                    booking={booking}
+                    audience="client"
+                    timeZone={timeZone}
+                    now={now}
+                    providerHref={
+                      slugs[booking.providerId] ? `/pros/${slugs[booking.providerId]}` : undefined
+                    }
+                  />
+                </li>
+              ))}
+            </ul>
           )}
-        </div>
-      ) : (
-        <ul className="mt-6 space-y-4">
-          {visible.map((booking) => (
-            <li key={booking.id}>
-              <BookingCard
-                booking={booking}
-                audience="client"
-                timeZone={timeZone}
-                now={now}
-                providerHref={
-                  slugs[booking.providerId] ? `/pros/${slugs[booking.providerId]}` : undefined
-                }
-              />
-            </li>
-          ))}
-        </ul>
-      )}
-    </>
+        </TableViewport>
+      </div>
+
+      <Pagination
+        href={(p) => href({ page: p })}
+        page={query.page}
+        pageCount={pageCount}
+        className="mt-8"
+        LinkComponent={TableLink}
+      />
+    </TableNavigationProvider>
   );
 }
 
